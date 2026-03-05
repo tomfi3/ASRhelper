@@ -3,222 +3,179 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ASR Helper - Air Quality Bias Adjustment</title>
+    <title>ASR Helper - Air Quality Data</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f5f7fa;
-            color: #333;
-            line-height: 1.5;
-        }
-        .header {
-            background: #1a365d;
-            color: white;
-            padding: 1.5rem 2rem;
-        }
-        .header h1 { font-size: 1.5rem; font-weight: 600; }
-        .header p { opacity: 0.8; font-size: 0.9rem; margin-top: 0.25rem; }
-        .container { max-width: 1200px; margin: 0 auto; padding: 1.5rem; }
-
-        /* Controls */
-        .controls {
-            background: white;
-            border-radius: 8px;
-            padding: 1.5rem;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            display: flex;
-            gap: 1rem;
-            align-items: end;
-            flex-wrap: wrap;
-            margin-bottom: 1.5rem;
-        }
-        .control-group { display: flex; flex-direction: column; gap: 0.25rem; }
-        .control-group label { font-size: 0.8rem; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 0.5px; }
-        .control-group select, .control-group input {
-            padding: 0.5rem 0.75rem;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 0.95rem;
-            min-width: 140px;
-        }
-        button {
-            padding: 0.5rem 1.25rem;
-            border: none;
-            border-radius: 4px;
-            font-size: 0.95rem;
-            cursor: pointer;
-            font-weight: 500;
-            transition: background 0.2s;
-        }
-        .btn-primary { background: #2b6cb0; color: white; }
-        .btn-primary:hover { background: #2c5282; }
-        .btn-primary:disabled { background: #a0aec0; cursor: not-allowed; }
-        .btn-export { background: #38a169; color: white; }
-        .btn-export:hover { background: #2f855a; }
-
-        /* Status */
-        .status {
-            padding: 0.75rem 1rem;
-            border-radius: 4px;
-            margin-bottom: 1rem;
-            font-size: 0.9rem;
-            display: none;
-        }
-        .status.loading { display: block; background: #ebf8ff; color: #2b6cb0; border: 1px solid #bee3f8; }
-        .status.error { display: block; background: #fff5f5; color: #c53030; border: 1px solid #fed7d7; }
-        .status.success { display: block; background: #f0fff4; color: #276749; border: 1px solid #c6f6d5; }
-
-        /* Tabs */
-        .tabs {
-            display: flex;
-            gap: 0;
-            margin-bottom: 0;
-        }
-        .tab {
-            padding: 0.6rem 1.2rem;
-            background: #e2e8f0;
-            border: 1px solid #cbd5e0;
-            border-bottom: none;
-            cursor: pointer;
-            font-size: 0.85rem;
-            font-weight: 500;
-            border-radius: 6px 6px 0 0;
-            color: #4a5568;
-        }
-        .tab.active { background: white; color: #2b6cb0; font-weight: 600; }
-        .tab-content {
-            background: white;
-            border: 1px solid #cbd5e0;
-            border-radius: 0 8px 8px 8px;
-            padding: 1.5rem;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            display: none;
-        }
-        .tab-content.active { display: block; }
-
-        /* Tables */
-        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-        th {
-            background: #2b6cb0;
-            color: white;
-            padding: 0.6rem 0.75rem;
-            text-align: center;
-            font-weight: 500;
-            white-space: nowrap;
-        }
-        td {
-            padding: 0.5rem 0.75rem;
-            border: 1px solid #e2e8f0;
-            text-align: center;
-        }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f7fa; color: #333; padding: 2rem; }
+        h1 { font-size: 1.3rem; margin-bottom: 1rem; }
+        .form { display: flex; gap: 1rem; align-items: end; flex-wrap: wrap; margin-bottom: 1.5rem; }
+        .field { display: flex; flex-direction: column; gap: 0.25rem; }
+        .field label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #555; }
+        .field input { padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.95rem; width: 160px; }
+        button { padding: 0.5rem 1.5rem; background: #2b6cb0; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 0.95rem; }
+        button:disabled { background: #a0aec0; cursor: not-allowed; }
+        #status { margin-bottom: 1rem; font-size: 0.9rem; min-height: 1.5em; }
+        .err { color: #c53030; } .ok { color: #276749; } .load { color: #2b6cb0; }
+        table { border-collapse: collapse; font-size: 0.85rem; margin-bottom: 1.5rem; }
+        th { background: #2b6cb0; color: #fff; padding: 0.5rem 0.75rem; text-align: center; white-space: nowrap; }
+        td { padding: 0.5rem 0.75rem; border: 1px solid #ddd; text-align: center; }
         tr:nth-child(even) { background: #f7fafc; }
-        td.label { text-align: left; font-weight: 500; }
-        .summary-row { background: #ebf8ff !important; font-weight: 600; }
-        .warn { background: #fff5f5 !important; color: #c53030; }
-        .good { color: #276749; }
-        .result { background: #f0fff4 !important; font-weight: 600; }
-
-        /* Site info */
-        .info-grid {
-            display: grid;
-            grid-template-columns: 200px 1fr;
-            gap: 0.5rem;
-            max-width: 500px;
-        }
-        .info-grid dt { font-weight: 600; color: #555; }
-        .info-grid dd { color: #333; }
-
-        h3 { margin: 1.5rem 0 0.75rem; color: #2d3748; font-size: 1.05rem; }
-        h3:first-child { margin-top: 0; }
-
-        .site-selector {
-            display: flex;
-            gap: 0.5rem;
-            margin-bottom: 1rem;
-        }
-        .site-btn {
-            padding: 0.4rem 1rem;
-            background: #edf2f7;
-            border: 2px solid #cbd5e0;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: 500;
-        }
-        .site-btn.active { border-color: #2b6cb0; background: #ebf8ff; color: #2b6cb0; }
-
-        .export-bar {
-            display: flex;
-            gap: 0.5rem;
-            margin-top: 1rem;
-            justify-content: flex-end;
-        }
-
-        .spinner {
-            display: inline-block;
-            width: 16px; height: 16px;
-            border: 2px solid #bee3f8;
-            border-top-color: #2b6cb0;
-            border-radius: 50%;
-            animation: spin 0.6s linear infinite;
-            vertical-align: middle;
-            margin-right: 0.5rem;
-        }
+        .note { font-size: 0.8rem; color: #666; margin-top: 0.5rem; }
+        .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #bee3f8; border-top-color: #2b6cb0; border-radius: 50%; animation: spin .5s linear infinite; vertical-align: middle; margin-right: 6px; }
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>ASR Helper - Air Quality Data Returns</h1>
-        <p>Bias Adjustment Questionnaire Generator for Richmond upon Thames</p>
+    <h1>ASR Helper - Air Quality Data Returns</h1>
+    <div class="form">
+        <div class="field"><label>Site Code</label><input id="site" value="RI1" placeholder="e.g. RI1"></div>
+        <div class="field"><label>Start Date</label><input id="start" type="date" value="2024-01-01"></div>
+        <div class="field"><label>End Date</label><input id="end" type="date" value="2024-12-31"></div>
+        <button id="btn" onclick="run()">Fetch Data</button>
     </div>
+    <div id="status"></div>
+    <div id="results"></div>
 
-    <div class="container">
-        <div class="controls">
-            <div class="control-group">
-                <label>Borough</label>
-                <select id="borough" disabled>
-                    <option value="Richmond">Richmond upon Thames</option>
-                </select>
-            </div>
-            <div class="control-group">
-                <label>Year</label>
-                <input type="number" id="year" value="2024" min="2000" max="2025">
-            </div>
-            <div class="control-group">
-                <label>Sites</label>
-                <select id="sites" multiple size="3" style="min-width: 220px;">
-                    <option value="RI1" selected>RI1 - Castelnau (Roadside)</option>
-                    <option value="RI2" selected>RI2 - Barnes Wetlands (Background)</option>
-                    <option value="RHI" selected>RHI - Richmond (Roadside)</option>
-                </select>
-            </div>
-            <button class="btn-primary" id="fetchBtn" onclick="fetchData()">Fetch Data</button>
-        </div>
+<script>
+const API = "https://api.erg.ic.ac.uk/AirQuality";
+const POLLUTANTS = ["NO2", "PM10", "PM25", "SO2"];
+const LABELS = { NO2: "NO2", PM10: "PM10", PM25: "PM2.5", SO2: "SO2" };
 
-        <div id="status" class="status"></div>
+async function fetchHourly(site, species, start, end) {
+    const url = `${API}/Data/SiteSpecies/SiteCode=${site}/SpeciesCode=${species}/StartDate=${start}/EndDate=${end}/Json`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`${r.status}`);
+    const d = await r.json();
+    const raw = d.RawAQData || d.AirQualityData || {};
+    let entries = raw.Data || [];
+    if (!Array.isArray(entries)) entries = [entries];
+    const out = [];
+    for (const e of entries) {
+        const ds = e["@MeasurementDateGMT"] || e["@DateTime"] || e["@Date"] || "";
+        const vs = e["@Value"] || e["@Concentration"] || "";
+        if (vs && vs.trim()) {
+            const v = parseFloat(vs);
+            if (!isNaN(v)) out.push({ dt: new Date(ds), value: v });
+        }
+    }
+    return out;
+}
 
-        <div id="results" style="display:none;">
-            <div class="site-selector" id="siteSelector"></div>
+function dailyMeans(records) {
+    const byDay = {};
+    for (const r of records) {
+        const key = r.dt.toISOString().slice(0, 10);
+        if (!byDay[key]) byDay[key] = [];
+        byDay[key].push(r.value);
+    }
+    const means = [];
+    for (const [day, vals] of Object.entries(byDay)) {
+        if (vals.length >= 18) {
+            means.push({ day, mean: vals.reduce((a, b) => a + b, 0) / vals.length, hours: vals.length });
+        }
+    }
+    return means;
+}
 
-            <div class="tabs" id="tabBar">
-                <div class="tab active" onclick="switchTab('info')">Site Info</div>
-                <div class="tab" onclick="switchTab('monthly')">Monthly Data</div>
-                <div class="tab" onclick="switchTab('bias')">Bias Adjustment</div>
-                <div class="tab" onclick="switchTab('annual')">Annual Stats</div>
-            </div>
+function calcStats(records, startDate, endDate) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const totalDays = Math.round((end - start) / 86400000) + 1;
+    const expectedHours = totalDays * 24;
+    const annualMean = records.length ? +(records.reduce((s, r) => s + r.value, 0) / records.length).toFixed(1) : null;
+    const dataCapture = +((records.length / expectedHours) * 100).toFixed(1);
+    return { annualMean, dataCapture, totalHours: records.length, expectedHours };
+}
 
-            <div id="tab-info" class="tab-content active"></div>
-            <div id="tab-monthly" class="tab-content"></div>
-            <div id="tab-bias" class="tab-content"></div>
-            <div id="tab-annual" class="tab-content"></div>
+async function run() {
+    const site = document.getElementById("site").value.trim().toUpperCase();
+    const start = document.getElementById("start").value;
+    const end = document.getElementById("end").value;
+    if (!site || !start || !end) { status("Fill in all fields", "err"); return; }
 
-            <div class="export-bar">
-                <button class="btn-export" onclick="exportCSV()">Export CSV</button>
-            </div>
-        </div>
-    </div>
+    const btn = document.getElementById("btn");
+    btn.disabled = true;
+    document.getElementById("results").innerHTML = "";
+    const rows = {};
 
-    <script src="app.js"></script>
+    for (const sp of POLLUTANTS) {
+        status(`<span class="spinner"></span>Fetching ${LABELS[sp]}...`, "load");
+        try {
+            const records = await fetchHourly(site, sp, start, end);
+            if (!records.length) { rows[sp] = null; continue; }
+
+            const s = calcStats(records, start, end);
+            const entry = { dataCapture: s.dataCapture, annualMean: s.annualMean };
+
+            if (sp === "NO2") {
+                entry.hours200 = records.filter(r => r.value > 200).length;
+            }
+            if (sp === "PM10") {
+                const dm = dailyMeans(records);
+                entry.days50 = dm.filter(d => d.mean > 50).length;
+            }
+            if (sp === "SO2") {
+                entry.hours350 = records.filter(r => r.value > 350).length;
+                const dm = dailyMeans(records);
+                entry.days125 = dm.filter(d => d.mean > 125).length;
+                entry.mins266 = "N/A (hourly only)";
+            }
+
+            rows[sp] = entry;
+        } catch (e) {
+            console.warn(`${sp} failed:`, e);
+            rows[sp] = null;
+        }
+    }
+
+    status(`Done - ${site} (${start} to ${end})`, "ok");
+    renderTable(rows, site, start, end);
+    btn.disabled = false;
+}
+
+function fmt(v) { return v != null ? v : "\u2014"; }
+
+function renderTable(rows, site, start, end) {
+    const no2 = rows.NO2;
+    const pm10 = rows.PM10;
+    const pm25 = rows.PM25;
+    const so2 = rows.SO2;
+
+    let html = `<h2 style="font-size:1rem;margin-bottom:0.75rem;">${site}: ${start} to ${end}</h2>`;
+    html += `<table><tr>
+        <th>NO2<br>Data Capture (%)</th>
+        <th>Annual Mean<br>NO2 (\u00b5g/m\u00b3)</th>
+        <th>NO2 1-hr Means<br>&gt;200 \u00b5g/m\u00b3</th>
+        <th>PM10<br>Data Capture (%)</th>
+        <th>Annual Mean<br>PM10 (\u00b5g/m\u00b3)</th>
+        <th>PM10 24-hr Means<br>&gt;50 \u00b5g/m\u00b3</th>
+        <th>PM2.5<br>Data Capture (%)</th>
+        <th>Annual Mean<br>PM2.5 (\u00b5g/m\u00b3)</th>
+        <th>SO2<br>Data Capture (%)</th>
+        <th>SO2 15-min Means<br>&gt;266 \u00b5g/m\u00b3</th>
+        <th>SO2 1-hr Means<br>&gt;350 \u00b5g/m\u00b3</th>
+        <th>SO2 24-hr Means<br>&gt;125 \u00b5g/m\u00b3</th>
+    </tr><tr>
+        <td>${no2 ? fmt(no2.dataCapture) : "\u2014"}</td>
+        <td>${no2 ? fmt(no2.annualMean) : "\u2014"}</td>
+        <td>${no2 ? fmt(no2.hours200) : "\u2014"}</td>
+        <td>${pm10 ? fmt(pm10.dataCapture) : "\u2014"}</td>
+        <td>${pm10 ? fmt(pm10.annualMean) : "\u2014"}</td>
+        <td>${pm10 ? fmt(pm10.days50) : "\u2014"}</td>
+        <td>${pm25 ? fmt(pm25.dataCapture) : "\u2014"}</td>
+        <td>${pm25 ? fmt(pm25.annualMean) : "\u2014"}</td>
+        <td>${so2 ? fmt(so2.dataCapture) : "\u2014"}</td>
+        <td>${so2 ? fmt(so2.mins266) : "\u2014"}</td>
+        <td>${so2 ? fmt(so2.hours350) : "\u2014"}</td>
+        <td>${so2 ? fmt(so2.days125) : "\u2014"}</td>
+    </tr></table>`;
+
+    html += `<p class="note">Data from London Air Quality Network (api.erg.ic.ac.uk). SO2 15-minute exceedances require sub-hourly data not available from this API. Daily means require \u226518 valid hours.</p>`;
+
+    document.getElementById("results").innerHTML = html;
+}
+
+function status(msg, cls) { document.getElementById("status").innerHTML = msg; document.getElementById("status").className = cls; }
+</script>
 </body>
 </html>
