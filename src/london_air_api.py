@@ -1,4 +1,7 @@
-"""Client for the London Air Quality Network (LAQN) API at api.erg.ic.ac.uk."""
+"""Client for the London Air Quality Network (LAQN) API at api.erg.ic.ac.uk.
+
+Based on API patterns from https://github.com/tomfi3/SensorsAPI
+"""
 
 import requests
 import logging
@@ -31,25 +34,18 @@ RICHMOND_SITES = {
 }
 
 
-def _get(endpoint, output_format="Json"):
+def _get(url):
     """Make a GET request to the London Air API."""
-    url = f"{BASE_URL}/{endpoint}/{output_format}"
     logger.info(f"Requesting: {url}")
-    response = requests.get(url, timeout=30)
+    response = requests.get(url, timeout=60)
     response.raise_for_status()
-    if output_format == "Json":
-        return response.json()
-    return response.text
+    return response.json()
 
 
-def get_site_info(group_name="Richmond"):
-    """Get monitoring site information for a borough group."""
-    return _get(f"Information/MonitoringSites/GroupName={group_name}")
-
-
-def get_site_species(site_code):
-    """Get species/pollutants monitored at a site."""
-    return _get(f"Information/MonitoringSiteSpecies/SiteCode={site_code}")
+def get_site_species(group_name="London"):
+    """Get all monitoring sites and their species for a group."""
+    url = f"{BASE_URL}/Information/MonitoringSiteSpecies/GroupName={group_name}/Json"
+    return _get(url)
 
 
 def get_hourly_data(site_code, species_code, start_date, end_date):
@@ -61,25 +57,21 @@ def get_hourly_data(site_code, species_code, start_date, end_date):
         start_date: 'YYYY-MM-DD' format
         end_date: 'YYYY-MM-DD' format
     """
-    endpoint = (
-        f"Data/SiteSpecies/SiteCode={site_code}"
-        f"/SpeciesCode={species_code}"
-        f"/StartDate={start_date}"
-        f"/EndDate={end_date}"
+    url = (
+        f"{BASE_URL}/Data/SiteSpecies"
+        f"/SiteCode={site_code}/SpeciesCode={species_code}"
+        f"/StartDate={start_date}/EndDate={end_date}/Json"
     )
-    return _get(endpoint)
+    return _get(url)
 
 
-def get_daily_data(site_code, species_code, start_date, end_date):
-    """Get daily mean monitoring data for a site and species."""
-    endpoint = (
-        f"Data/SiteSpecies/SiteCode={site_code}"
-        f"/SpeciesCode={species_code}"
-        f"/StartDate={start_date}"
-        f"/EndDate={end_date}"
-        f"/Period=Daily"
-    )
-    return _get(endpoint)
+def get_annual_report(site_code, year):
+    """Get annual monitoring report for a site and year.
+
+    Returns monthly and annual means from the official LAQN report.
+    """
+    url = f"{BASE_URL}/Annual/MonitoringReport/SiteCode={site_code}/Year={year}/json"
+    return _get(url)
 
 
 def get_diffusion_tube_data(site_code, mon_type="DT"):
@@ -89,12 +81,8 @@ def get_diffusion_tube_data(site_code, mon_type="DT"):
         site_code: site code e.g. 'RI1'
         mon_type: monitoring type, 'DT' for diffusion tubes
     """
-    return _get(f"Data/DiffusionTube/code={site_code}/montype={mon_type}")
-
-
-def get_annual_report(site_code, year):
-    """Get annual monitoring report for a site and year."""
-    return _get(f"Annual/MonitoringReport/SiteCode={site_code}/Year={year}")
+    url = f"{BASE_URL}/Data/DiffusionTube/code={site_code}/montype={mon_type}/Json"
+    return _get(url)
 
 
 def get_annual_objectives(group_name="Richmond", year=None):
@@ -102,28 +90,34 @@ def get_annual_objectives(group_name="Richmond", year=None):
     endpoint = f"Annual/MonitoringObjective/GroupName={group_name}"
     if year:
         endpoint += f"/Year={year}"
-    return _get(endpoint)
-
-
-def get_species_info(species_code=None):
-    """Get information about monitored species/pollutants."""
-    if species_code:
-        return _get(f"Information/Species/SpeciesCode={species_code}")
-    return _get("Information/Species")
+    url = f"{BASE_URL}/{endpoint}/Json"
+    return _get(url)
 
 
 def extract_hourly_values(api_response):
-    """Extract hourly measurement values from API response into a flat list of dicts."""
+    """Extract hourly measurement values from API response.
+
+    The API wraps hourly data under either 'RawAQData' or 'AirQualityData'.
+    Each record has @MeasurementDateGMT (or @DateTime/@Date) and @Value.
+    """
     records = []
     try:
-        raw_data = api_response.get("RawAQData", {})
+        raw_data = (
+            api_response.get("RawAQData")
+            or api_response.get("AirQualityData")
+            or {}
+        )
         data_entries = raw_data.get("Data", [])
         if isinstance(data_entries, dict):
             data_entries = [data_entries]
         for entry in data_entries:
-            date_str = entry.get("@MeasurementDateGMT", "")
-            value = entry.get("@Value", "")
-            if value and value.strip():
+            date_str = (
+                entry.get("@MeasurementDateGMT")
+                or entry.get("@DateTime")
+                or entry.get("@Date", "")
+            )
+            value = entry.get("@Value") or entry.get("@Concentration", "")
+            if value and str(value).strip():
                 try:
                     records.append({
                         "datetime": datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S"),
@@ -136,11 +130,52 @@ def extract_hourly_values(api_response):
     return records
 
 
+def extract_annual_report_data(api_response, species_code="NO2"):
+    """Extract monthly and annual means from the Annual MonitoringReport endpoint.
+
+    Returns dict with 'annual_mean' and 'monthly' {month_num: value}.
+    """
+    result = {"annual_mean": None, "monthly": {}}
+    try:
+        site_report = api_response.get("SiteReport", {})
+        report_items = site_report.get("ReportItem", [])
+        if isinstance(report_items, dict):
+            report_items = [report_items]
+
+        for item in report_items:
+            if item.get("@SpeciesCode") != species_code:
+                continue
+            # ReportItem type 7 = means
+            annual_val = item.get("@Annual", "")
+            if annual_val and str(annual_val).strip():
+                try:
+                    result["annual_mean"] = float(annual_val)
+                except (ValueError, TypeError):
+                    pass
+
+            for month_num in range(1, 13):
+                month_key = f"@Month{month_num}"
+                val = item.get(month_key, "")
+                if val and str(val).strip():
+                    try:
+                        result["monthly"][month_num] = float(val)
+                    except (ValueError, TypeError):
+                        pass
+    except (AttributeError, TypeError) as e:
+        logger.warning(f"Failed to extract annual report data: {e}")
+    return result
+
+
 def extract_diffusion_tube_values(api_response):
     """Extract diffusion tube monthly values from API response."""
     records = []
     try:
-        dt_data = api_response.get("DiffusionTubeData", {})
+        # Try multiple possible response structures
+        dt_data = (
+            api_response.get("DiffusionTubeData")
+            or api_response.get("RawDiffusionTubeData")
+            or api_response
+        )
         sites = dt_data.get("Site", [])
         if isinstance(sites, dict):
             sites = [sites]
@@ -152,7 +187,7 @@ def extract_diffusion_tube_values(api_response):
                 year = m.get("@Year", "")
                 month = m.get("@Month", "")
                 value = m.get("@Value", "")
-                if value and value.strip():
+                if value and str(value).strip():
                     try:
                         records.append({
                             "year": int(year),
@@ -208,7 +243,6 @@ def calculate_annual_stats(hourly_records):
 
     values = [r["value"] for r in hourly_records]
     year = hourly_records[0]["datetime"].year
-    # Expected hours in a year (accounting for leap years)
     import calendar
     expected_hours = 366 * 24 if calendar.isleap(year) else 365 * 24
 
