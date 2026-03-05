@@ -6,38 +6,75 @@
     <title>ASR Helper - Air Quality Data</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f7fa; color: #333; padding: 2rem; }
-        h1 { font-size: 1.3rem; margin-bottom: 1rem; }
-        .form { display: flex; gap: 1rem; align-items: end; flex-wrap: wrap; margin-bottom: 1.5rem; }
-        .field { display: flex; flex-direction: column; gap: 0.25rem; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f7fa; color: #333; padding: 2rem; max-width: 1200px; margin: 0 auto; }
+        h1 { font-size: 1.3rem; margin-bottom: 0.5rem; }
+        p.intro { font-size: 0.85rem; color: #555; margin-bottom: 1.5rem; }
+        .row { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+        .col { flex: 1; min-width: 280px; }
+        .field { display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 0.75rem; }
         .field label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #555; }
-        .field input { padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.95rem; width: 160px; }
+        .field input, .field select { padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.95rem; }
+        .field input { width: 160px; }
+        textarea { width: 100%; height: 320px; font-family: 'Consolas', 'Monaco', monospace; font-size: 0.8rem; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; resize: vertical; }
         button { padding: 0.5rem 1.5rem; background: #2b6cb0; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 0.95rem; }
         button:disabled { background: #a0aec0; cursor: not-allowed; }
         #status { margin-bottom: 1rem; font-size: 0.9rem; min-height: 1.5em; }
         .err { color: #c53030; } .ok { color: #276749; } .load { color: #2b6cb0; }
-        table { border-collapse: collapse; font-size: 0.85rem; margin-bottom: 1.5rem; }
+        table { border-collapse: collapse; font-size: 0.85rem; margin-bottom: 1rem; width: 100%; }
         th { background: #2b6cb0; color: #fff; padding: 0.5rem 0.75rem; text-align: center; white-space: nowrap; }
         td { padding: 0.5rem 0.75rem; border: 1px solid #ddd; text-align: center; }
         tr:nth-child(even) { background: #f7fafc; }
         td.lbl { text-align: left; font-weight: 500; background: #edf2f7; }
         tr.summary { font-weight: 600; background: #ebf8ff !important; }
-        .section { margin-top: 2rem; }
-        .section h2 { font-size: 1rem; margin-bottom: 0.75rem; }
-        .note { font-size: 0.8rem; color: #666; margin-top: 0.5rem; }
         .low-dc { color: #c53030; }
+        .section { margin-top: 1.5rem; }
+        .section h2 { font-size: 1rem; margin-bottom: 0.5rem; }
+        .note { font-size: 0.8rem; color: #666; margin-top: 0.5rem; }
         .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #bee3f8; border-top-color: #2b6cb0; border-radius: 50%; animation: spin .5s linear infinite; vertical-align: middle; margin-right: 6px; }
         @keyframes spin { to { transform: rotate(360deg); } }
+        .example { font-size: 0.75rem; color: #888; margin-top: 0.25rem; }
     </style>
 </head>
 <body>
-    <h1>ASR Helper - Air Quality Data Returns</h1>
-    <div class="form">
-        <div class="field"><label>Site Code</label><input id="site" value="RI1" placeholder="e.g. RI1"></div>
-        <div class="field"><label>Start Date</label><input id="start" type="date" value="2024-01-01"></div>
-        <div class="field"><label>End Date</label><input id="end" type="date" value="2024-12-31"></div>
-        <button id="btn" onclick="run()">Fetch Data</button>
+    <h1>ASR Helper</h1>
+    <p class="intro">Paste your diffusion tube changeover dates below. The app fetches NO2 automatic analyser data for each exposure period from the London Air API.</p>
+
+    <div class="row">
+        <div class="col">
+            <div class="field">
+                <label>Site Code</label>
+                <input id="site" value="RI1" placeholder="e.g. RI1">
+            </div>
+            <div class="field">
+                <label>Year</label>
+                <input id="year" type="number" value="2024" min="2000" max="2030">
+            </div>
+            <div class="field">
+                <label>Changeover Dates (paste from Excel)</label>
+                <textarea id="dates" placeholder="Paste dates here - one per line, or tab/comma separated from a spreadsheet.
+
+Each date is when tubes were swapped. The app calculates exposure periods between consecutive dates.
+
+Example:
+05/01/2024
+02/02/2024
+01/03/2024
+05/04/2024
+03/05/2024
+07/06/2024
+05/07/2024
+02/08/2024
+06/09/2024
+04/10/2024
+01/11/2024
+06/12/2024
+03/01/2025"></textarea>
+                <p class="example">Expects 13 dates for 12 months (start of Jan exposure through to start of Jan next year). Accepts DD/MM/YYYY, YYYY-MM-DD, or DD-MM-YYYY.</p>
+            </div>
+            <button id="btn" onclick="run()">Fetch NO2 Data</button>
+        </div>
     </div>
+
     <div id="status"></div>
     <div id="results"></div>
 
@@ -45,11 +82,45 @@
 const API = "https://api.erg.ic.ac.uk/AirQuality";
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-// Fetch hourly automatic analyser data
-async function fetchHourly(site, species, start, end) {
+function parseDate(s) {
+    s = s.trim();
+    if (!s) return null;
+    // YYYY-MM-DD
+    let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (m) return new Date(+m[1], +m[2]-1, +m[3]);
+    // DD/MM/YYYY or DD-MM-YYYY
+    m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (m) return new Date(+m[3], +m[2]-1, +m[1]);
+    // Try native parse as fallback
+    const d = new Date(s);
+    return isNaN(d) ? null : d;
+}
+
+function parseDatesInput(text) {
+    // Split on newlines, tabs, commas - handle pasted spreadsheet data
+    const tokens = text.split(/[\n\r\t,]+/).map(s => s.trim()).filter(Boolean);
+    const dates = [];
+    for (const t of tokens) {
+        const d = parseDate(t);
+        if (d) dates.push(d);
+    }
+    return dates.sort((a, b) => a - b);
+}
+
+function fmtDate(d) {
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function fmtDateAPI(d) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+async function fetchHourly(site, species, startDate, endDate) {
+    const start = fmtDateAPI(startDate);
+    const end = fmtDateAPI(endDate);
     const url = `${API}/Data/SiteSpecies/SiteCode=${site}/SpeciesCode=${species}/StartDate=${start}/EndDate=${end}/Json`;
     const r = await fetch(url);
-    if (!r.ok) throw new Error(`${r.status}`);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const d = await r.json();
     const raw = d.RawAQData || d.AirQualityData || {};
     let entries = raw.Data || [];
@@ -66,254 +137,111 @@ async function fetchHourly(site, species, start, end) {
     return out;
 }
 
-// Fetch diffusion tube data
-async function fetchDiffusionTube(site) {
-    const url = `${API}/Data/DiffusionTube/code=${site}/montype=DT/Json`;
-    const r = await fetch(url);
-    if (!r.ok) throw new Error(`${r.status}`);
-    const d = await r.json();
-    const dtData = d.DiffusionTubeData || d.RawDiffusionTubeData || d;
-    let sites = dtData.Site || [];
-    if (!Array.isArray(sites)) sites = [sites];
-    const out = [];
-    for (const s of sites) {
-        let measurements = s.Measurement || [];
-        if (!Array.isArray(measurements)) measurements = [measurements];
-        for (const m of measurements) {
-            const yr = m["@Year"], mo = m["@Month"], val = m["@Value"];
-            if (val && String(val).trim()) {
-                try { out.push({ year: parseInt(yr), month: parseInt(mo), value: parseFloat(val) }); } catch(e) {}
-            }
-        }
-    }
-    return out;
-}
-
-// Monthly means from hourly data
-function monthlyMeans(records) {
-    const byMonth = {};
-    for (const r of records) {
-        const m = r.dt.getMonth() + 1; // 1-12
-        if (!byMonth[m]) byMonth[m] = [];
-        byMonth[m].push(r.value);
-    }
-    const result = {};
-    for (const [m, vals] of Object.entries(byMonth)) {
-        const yr = records[0].dt.getFullYear();
-        const daysInMonth = new Date(yr, parseInt(m), 0).getDate();
-        const expected = daysInMonth * 24;
-        result[m] = {
-            mean: +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1),
-            count: vals.length,
-            dataCapture: +((vals.length / expected) * 100).toFixed(1)
-        };
-    }
-    return result;
-}
-
-// Daily means from hourly
-function dailyMeans(records) {
-    const byDay = {};
-    for (const r of records) {
-        const key = r.dt.toISOString().slice(0, 10);
-        if (!byDay[key]) byDay[key] = [];
-        byDay[key].push(r.value);
-    }
-    return Object.entries(byDay)
-        .filter(([, vals]) => vals.length >= 18)
-        .map(([day, vals]) => ({ day, mean: vals.reduce((a, b) => a + b, 0) / vals.length }));
-}
-
-// Overall stats
-function annualStats(records, startDate, endDate) {
-    const start = new Date(startDate), end = new Date(endDate);
-    const totalDays = Math.round((end - start) / 86400000) + 1;
-    const expected = totalDays * 24;
-    return {
-        mean: records.length ? +(records.reduce((s, r) => s + r.value, 0) / records.length).toFixed(1) : null,
-        dataCapture: +((records.length / expected) * 100).toFixed(1),
-        count: records.length
-    };
-}
-
 async function run() {
     const site = document.getElementById("site").value.trim().toUpperCase();
-    const start = document.getElementById("start").value;
-    const end = document.getElementById("end").value;
-    if (!site || !start || !end) { setStatus("Fill in all fields", "err"); return; }
+    const year = parseInt(document.getElementById("year").value);
+    const datesText = document.getElementById("dates").value;
+
+    if (!site) { setStatus("Enter a site code", "err"); return; }
+
+    const dates = parseDatesInput(datesText);
+    if (dates.length < 2) {
+        setStatus("Need at least 2 changeover dates to define exposure periods", "err");
+        return;
+    }
 
     const btn = document.getElementById("btn");
     btn.disabled = true;
     document.getElementById("results").innerHTML = "";
 
-    const year = parseInt(start.slice(0, 4));
-    let html = "";
-
-    // 1. Diffusion tube collocation table
-    setStatus('<span class="spinner"></span>Fetching diffusion tube data...', "load");
-    try {
-        const [dtRecords, no2Hourly] = await Promise.all([
-            fetchDiffusionTube(site),
-            fetchHourly(site, "NO2", start, end)
-        ]);
-
-        const dtByMonth = {};
-        for (const r of dtRecords) {
-            if (r.year === year) dtByMonth[r.month] = r.value;
-        }
-
-        const autoMonthly = monthlyMeans(no2Hourly);
-        const hasDT = Object.keys(dtByMonth).length > 0;
-
-        if (hasDT || no2Hourly.length) {
-            html += `<div class="section"><h2>NO2 Diffusion Tube Collocation - ${site} (${year})</h2>`;
-            html += `<table><tr>
-                <th>Month</th>
-                <th>Diffusion Tube<br>NO2 (\u00b5g/m\u00b3)</th>
-                <th>Auto Analyser<br>NO2 (\u00b5g/m\u00b3)</th>
-                <th>Auto Data<br>Capture (%)</th>
-                <th>Tube/Auto<br>Ratio</th>
-                <th>Difference<br>(\u00b5g/m\u00b3)</th>
-            </tr>`;
-
-            let validMonths = 0, sumTube = 0, sumAuto = 0, sumRatio = 0;
-
-            for (let m = 1; m <= 12; m++) {
-                const dt = dtByMonth[m];
-                const auto = autoMonthly[m];
-                const dtVal = dt != null ? dt.toFixed(1) : "\u2014";
-                const autoVal = auto ? auto.mean.toFixed(1) : "\u2014";
-                const dc = auto ? auto.dataCapture : null;
-                const dcStr = dc != null ? dc.toFixed(1) : "\u2014";
-                const dcCls = dc != null && dc < 75 ? ' class="low-dc"' : "";
-
-                let ratio = "\u2014", diff = "\u2014";
-                if (dt != null && auto && auto.mean > 0 && dc >= 75) {
-                    ratio = (dt / auto.mean).toFixed(2);
-                    diff = (dt - auto.mean).toFixed(1);
-                    validMonths++;
-                    sumTube += dt;
-                    sumAuto += auto.mean;
-                    sumRatio += dt / auto.mean;
-                }
-
-                html += `<tr>
-                    <td class="lbl">${MONTHS[m-1]}</td>
-                    <td>${dtVal}</td>
-                    <td>${autoVal}</td>
-                    <td${dcCls}>${dcStr}</td>
-                    <td>${ratio}</td>
-                    <td>${diff}</td>
-                </tr>`;
-            }
-
-            // Summary row
-            const meanTube = validMonths ? (sumTube / validMonths).toFixed(1) : "\u2014";
-            const meanAuto = validMonths ? (sumAuto / validMonths).toFixed(1) : "\u2014";
-            const meanRatio = validMonths ? (sumRatio / validMonths).toFixed(2) : "\u2014";
-            const meanDiff = validMonths ? ((sumTube - sumAuto) / validMonths).toFixed(1) : "\u2014";
-
-            html += `<tr class="summary">
-                <td class="lbl">Annual Mean (${validMonths} valid months)</td>
-                <td>${meanTube}</td>
-                <td>${meanAuto}</td>
-                <td></td>
-                <td>${meanRatio}</td>
-                <td>${meanDiff}</td>
-            </tr></table>`;
-
-            if (validMonths < 9) {
-                html += `<p class="note low-dc">Warning: Only ${validMonths} valid paired months. Need \u22659 for local bias adjustment - use national factor instead.</p>`;
-            }
-
-            // Bias adjustment factor
-            if (validMonths >= 1) {
-                const biasAdj = sumAuto / sumTube;
-                const rawMean = sumTube / validMonths;
-                const adjMean = (rawMean * biasAdj).toFixed(1);
-                html += `<p class="note">Bias adjustment factor (Auto/Tube): <strong>${biasAdj.toFixed(3)}</strong> | Raw tube mean: ${rawMean.toFixed(1)} \u00b5g/m\u00b3 | Adjusted mean: ${adjMean} \u00b5g/m\u00b3</p>`;
-            }
-
-            html += `</div>`;
-        }
-    } catch(e) {
-        console.warn("DT fetch failed:", e);
-        html += `<p class="note">Diffusion tube data not available for ${site}.</p>`;
+    // Build exposure periods from consecutive dates
+    const periods = [];
+    for (let i = 0; i < dates.length - 1; i++) {
+        periods.push({ start: dates[i], end: dates[i + 1], monthIdx: i });
     }
 
-    // 2. Annual statistics table (all pollutants)
-    const pollutants = ["NO2", "PM10", "PM25", "SO2"];
-    const labels = { NO2: "NO2", PM10: "PM10", PM25: "PM2.5", SO2: "SO2" };
-    const rows = {};
-
-    for (const sp of pollutants) {
-        setStatus(`<span class="spinner"></span>Fetching ${labels[sp]}...`, "load");
-        try {
-            const records = await fetchHourly(site, sp, start, end);
-            if (!records.length) { rows[sp] = null; continue; }
-
-            const s = annualStats(records, start, end);
-            const entry = { dataCapture: s.dataCapture, annualMean: s.mean };
-
-            if (sp === "NO2") entry.hours200 = records.filter(r => r.value > 200).length;
-            if (sp === "PM10") {
-                const dm = dailyMeans(records);
-                entry.days50 = dm.filter(d => d.mean > 50).length;
-            }
-            if (sp === "SO2") {
-                entry.hours350 = records.filter(r => r.value > 350).length;
-                const dm = dailyMeans(records);
-                entry.days125 = dm.filter(d => d.mean > 125).length;
-                entry.mins266 = "N/A";
-            }
-            rows[sp] = entry;
-        } catch(e) {
-            console.warn(`${sp} failed:`, e);
-            rows[sp] = null;
-        }
-    }
-
-    // Render annual stats
-    const no2 = rows.NO2, pm10 = rows.PM10, pm25 = rows.PM25, so2 = rows.SO2;
-    const f = v => v != null ? v : "\u2014";
-
-    html += `<div class="section"><h2>Annual Statistics - ${site} (${start} to ${end})</h2>`;
+    let html = `<div class="section"><h2>NO2 Data - ${site} (${year})</h2>`;
     html += `<table><tr>
-        <th>NO2<br>Data Capture (%)</th>
-        <th>Annual Mean<br>NO2 (\u00b5g/m\u00b3)</th>
-        <th>NO2 1-hr Means<br>&gt;200 \u00b5g/m\u00b3</th>
-        <th>PM10<br>Data Capture (%)</th>
-        <th>Annual Mean<br>PM10 (\u00b5g/m\u00b3)</th>
-        <th>PM10 24-hr Means<br>&gt;50 \u00b5g/m\u00b3</th>
-        <th>PM2.5<br>Data Capture (%)</th>
-        <th>Annual Mean<br>PM2.5 (\u00b5g/m\u00b3)</th>
-        <th>SO2<br>Data Capture (%)</th>
-        <th>SO2 15-min<br>&gt;266 \u00b5g/m\u00b3</th>
-        <th>SO2 1-hr<br>&gt;350 \u00b5g/m\u00b3</th>
-        <th>SO2 24-hr<br>&gt;125 \u00b5g/m\u00b3</th>
-    </tr><tr>
-        <td>${no2 ? f(no2.dataCapture) : "\u2014"}</td>
-        <td>${no2 ? f(no2.annualMean) : "\u2014"}</td>
-        <td>${no2 ? f(no2.hours200) : "\u2014"}</td>
-        <td>${pm10 ? f(pm10.dataCapture) : "\u2014"}</td>
-        <td>${pm10 ? f(pm10.annualMean) : "\u2014"}</td>
-        <td>${pm10 ? f(pm10.days50) : "\u2014"}</td>
-        <td>${pm25 ? f(pm25.dataCapture) : "\u2014"}</td>
-        <td>${pm25 ? f(pm25.annualMean) : "\u2014"}</td>
-        <td>${so2 ? f(so2.dataCapture) : "\u2014"}</td>
-        <td>${so2 ? f(so2.mins266) : "\u2014"}</td>
-        <td>${so2 ? f(so2.hours350) : "\u2014"}</td>
-        <td>${so2 ? f(so2.days125) : "\u2014"}</td>
-    </tr></table></div>`;
+        <th>Month</th>
+        <th>Exposure Start</th>
+        <th>Exposure End</th>
+        <th>Days</th>
+        <th>Valid Hours</th>
+        <th>Expected Hours</th>
+        <th>Data Capture (%)</th>
+        <th>Period Mean NO2<br>(\u00b5g/m\u00b3)</th>
+    </tr>`;
 
-    html += `<p class="note">Data from London Air Quality Network (api.erg.ic.ac.uk). Months with &lt;75% data capture shown in red and excluded from bias calculation. Daily means require \u226518 valid hours.</p>`;
+    let totalValues = 0, totalSum = 0, totalExpected = 0, totalValid = 0;
+
+    for (let i = 0; i < periods.length; i++) {
+        const p = periods[i];
+        const days = Math.round((p.end - p.start) / 86400000);
+        const expected = days * 24;
+        const label = i < 12 ? MONTHS[i] : `Period ${i + 1}`;
+
+        setStatus(`<span class="spinner"></span>Fetching ${label} (${fmtDate(p.start)} \u2013 ${fmtDate(p.end)})...`, "load");
+
+        try {
+            // Fetch from start date to day before end date (end date is next tube's start)
+            const fetchEnd = new Date(p.end);
+            fetchEnd.setDate(fetchEnd.getDate() - 1);
+            const records = await fetchHourly(site, "NO2", p.start, fetchEnd);
+
+            const count = records.length;
+            const dc = expected > 0 ? +((count / expected) * 100).toFixed(1) : 0;
+            const mean = count > 0 ? +(records.reduce((s, r) => s + r.value, 0) / count).toFixed(1) : null;
+            const dcCls = dc < 75 ? ' class="low-dc"' : '';
+
+            totalExpected += expected;
+            totalValid += count;
+            if (mean != null) { totalValues++; totalSum += mean; }
+
+            html += `<tr>
+                <td class="lbl">${label}</td>
+                <td>${fmtDate(p.start)}</td>
+                <td>${fmtDate(p.end)}</td>
+                <td>${days}</td>
+                <td>${count}</td>
+                <td>${expected}</td>
+                <td${dcCls}>${dc}</td>
+                <td>${mean != null ? mean : "\u2014"}</td>
+            </tr>`;
+        } catch (e) {
+            console.warn(`Period ${i} failed:`, e);
+            html += `<tr>
+                <td class="lbl">${label}</td>
+                <td>${fmtDate(p.start)}</td>
+                <td>${fmtDate(p.end)}</td>
+                <td>${days}</td>
+                <td colspan="4" class="low-dc">Error fetching data</td>
+            </tr>`;
+        }
+    }
+
+    // Summary
+    const overallDC = totalExpected > 0 ? +((totalValid / totalExpected) * 100).toFixed(1) : 0;
+    const annualMean = totalValues > 0 ? (totalSum / totalValues).toFixed(1) : "\u2014";
+    html += `<tr class="summary">
+        <td class="lbl" colspan="4">Annual Summary (${totalValues} periods)</td>
+        <td>${totalValid}</td>
+        <td>${totalExpected}</td>
+        <td>${overallDC}</td>
+        <td>${annualMean}</td>
+    </tr></table>`;
+
+    html += `<p class="note">Periods with &lt;75% data capture shown in red. Each period runs from changeover date to the day before next changeover. Data from London Air Quality Network.</p>`;
+    html += `</div>`;
 
     document.getElementById("results").innerHTML = html;
-    setStatus(`Done - ${site} (${start} to ${end})`, "ok");
+    setStatus(`Done - ${site} (${periods.length} periods fetched)`, "ok");
     btn.disabled = false;
 }
 
-function setStatus(msg, cls) { document.getElementById("status").innerHTML = msg; document.getElementById("status").className = cls; }
+function setStatus(msg, cls) {
+    document.getElementById("status").innerHTML = msg;
+    document.getElementById("status").className = cls;
+}
 </script>
 </body>
 </html>
