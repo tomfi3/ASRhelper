@@ -145,9 +145,14 @@ def extract_annual_report_data(api_response, species_code="NO2"):
         for item in report_items:
             if item.get("@SpeciesCode") != species_code:
                 continue
-            # ReportItem type 7 = means
+            # Only use ReportItem type 7 (means) with "Mean:" prefix
+            report_type = str(item.get("@ReportItem", ""))
+            report_name = str(item.get("@ReportItemName", ""))
+            if report_type != "7" or not report_name.startswith("Mean:"):
+                continue
+
             annual_val = item.get("@Annual", "")
-            if annual_val and str(annual_val).strip():
+            if annual_val and str(annual_val).strip() and str(annual_val) != "-999":
                 try:
                     result["annual_mean"] = float(annual_val)
                 except (ValueError, TypeError):
@@ -156,7 +161,7 @@ def extract_annual_report_data(api_response, species_code="NO2"):
             for month_num in range(1, 13):
                 month_key = f"@Month{month_num}"
                 val = item.get(month_key, "")
-                if val and str(val).strip():
+                if val and str(val).strip() and str(val) != "-999":
                     try:
                         result["monthly"][month_num] = float(val)
                     except (ValueError, TypeError):
