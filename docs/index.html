@@ -12,36 +12,32 @@
         .controls { display: flex; gap: 1rem; align-items: end; flex-wrap: wrap; margin-bottom: 1.5rem; }
         .field { display: flex; flex-direction: column; gap: 0.25rem; }
         .field label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: #555; }
-        .field select, .field input { padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.95rem; }
+        .field select { padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.95rem; }
         button { padding: 0.5rem 1.5rem; background: #2b6cb0; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 0.95rem; }
         button:disabled { background: #a0aec0; cursor: not-allowed; }
         #status { margin-bottom: 1rem; font-size: 0.9rem; min-height: 1.5em; }
         .err { color: #c53030; } .ok { color: #276749; } .load { color: #2b6cb0; }
-        table { border-collapse: collapse; font-size: 0.85rem; margin-bottom: 1rem; width: 100%; }
-        th { background: #2b6cb0; color: #fff; padding: 0.5rem 0.6rem; text-align: center; white-space: nowrap; font-size: 0.8rem; }
-        td { padding: 0.4rem 0.6rem; border: 1px solid #ddd; text-align: center; }
+        table { border-collapse: collapse; font-size: 0.85rem; margin-bottom: 1rem; }
+        th { background: #b8860b; color: #fff; padding: 0.5rem 0.75rem; text-align: center; white-space: nowrap; font-size: 0.8rem; }
+        td { padding: 0.4rem 0.75rem; border: 1px solid #ddd; text-align: center; }
         tr:nth-child(even) { background: #f7fafc; }
-        td.lbl { text-align: left; font-weight: 500; background: #edf2f7; }
-        tr.summary { font-weight: 600; background: #ebf8ff !important; }
+        tr.summary { font-weight: 600; background: #fff8dc !important; }
         .low-dc { color: #c53030; }
-        .dates-table { margin-bottom: 1.5rem; }
-        .dates-table input { width: 120px; padding: 0.3rem; font-size: 0.85rem; border: 1px solid #ccc; border-radius: 3px; text-align: center; }
-        .dates-table td.lbl { min-width: 90px; }
-        .section { margin-top: 1.5rem; }
+        .section { margin-top: 1rem; }
         .section h2 { font-size: 1rem; margin-bottom: 0.5rem; }
         .note { font-size: 0.8rem; color: #666; margin-top: 0.5rem; }
-        .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #bee3f8; border-top-color: #2b6cb0; border-radius: 50%; animation: spin .5s linear infinite; vertical-align: middle; margin-right: 6px; }
+        .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #f5deb3; border-top-color: #b8860b; border-radius: 50%; animation: spin .5s linear infinite; vertical-align: middle; margin-right: 6px; }
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
     <h1>ASR Helper - Richmond Air Quality</h1>
-    <p class="intro">Fetches NO2 automatic analyser data for each diffusion tube exposure period from the London Air API.</p>
+    <p class="intro">Fetches NO2 and NOx data for each diffusion tube exposure period from the London Air API.</p>
 
     <div class="controls">
         <div class="field">
             <label>Site</label>
-            <select id="site" onchange="loadSite()">
+            <select id="site">
                 <option value="RI1">RI1 - Castelnau (Roadside)</option>
                 <option value="RI2">RI2 - Barnes Wetlands (Background)</option>
                 <option value="RHI">RHI - Richmond Station (Roadside)</option>
@@ -49,26 +45,24 @@
         </div>
         <div class="field">
             <label>Year</label>
-            <select id="year" onchange="loadSite()">
+            <select id="year">
                 <option value="2024" selected>2024</option>
                 <option value="2023">2023</option>
                 <option value="2025">2025</option>
             </select>
         </div>
-        <button id="btn" onclick="run()">Fetch NO2 Data</button>
+        <button id="btn" onclick="run()">Fetch Data</button>
     </div>
 
-    <div id="dates-container"></div>
     <div id="status"></div>
     <div id="results"></div>
 
 <script>
 const API = "https://api.erg.ic.ac.uk/AirQuality";
-const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
 // Changeover dates for each site/year.
-// Each array has 13 dates: the start of each month's exposure + the end of December's exposure.
-// UPDATE THESE with the actual tube changeover dates.
+// 13 dates per year: start of period 1 through to end of period 12.
+// UPDATE THESE with actual tube changeover dates.
 const CHANGEOVER_DATES = {
     "RI1": {
         "2024": [
@@ -76,6 +70,18 @@ const CHANGEOVER_DATES = {
             "03/05/2024","07/06/2024","05/07/2024","02/08/2024",
             "06/09/2024","04/10/2024","01/11/2024","06/12/2024",
             "03/01/2025"
+        ],
+        "2023": [
+            "06/01/2023","03/02/2023","03/03/2023","07/04/2023",
+            "05/05/2023","02/06/2023","07/07/2023","04/08/2023",
+            "01/09/2023","06/10/2023","03/11/2023","01/12/2023",
+            "05/01/2024"
+        ],
+        "2025": [
+            "08/01/2025","04/02/2025","03/03/2025","04/04/2025",
+            "02/05/2025","06/06/2025","04/07/2025","01/08/2025",
+            "05/09/2025","03/10/2025","07/11/2025","05/12/2025",
+            "02/01/2026"
         ]
     },
     "RI2": {
@@ -84,6 +90,18 @@ const CHANGEOVER_DATES = {
             "03/05/2024","07/06/2024","05/07/2024","02/08/2024",
             "06/09/2024","04/10/2024","01/11/2024","06/12/2024",
             "03/01/2025"
+        ],
+        "2023": [
+            "06/01/2023","03/02/2023","03/03/2023","07/04/2023",
+            "05/05/2023","02/06/2023","07/07/2023","04/08/2023",
+            "01/09/2023","06/10/2023","03/11/2023","01/12/2023",
+            "05/01/2024"
+        ],
+        "2025": [
+            "08/01/2025","04/02/2025","03/03/2025","04/04/2025",
+            "02/05/2025","06/06/2025","04/07/2025","01/08/2025",
+            "05/09/2025","03/10/2025","07/11/2025","05/12/2025",
+            "02/01/2026"
         ]
     },
     "RHI": {
@@ -92,98 +110,76 @@ const CHANGEOVER_DATES = {
             "03/05/2024","07/06/2024","05/07/2024","02/08/2024",
             "06/09/2024","04/10/2024","01/11/2024","06/12/2024",
             "03/01/2025"
+        ],
+        "2023": [
+            "06/01/2023","03/02/2023","03/03/2023","07/04/2023",
+            "05/05/2023","02/06/2023","07/07/2023","04/08/2023",
+            "01/09/2023","06/10/2023","03/11/2023","01/12/2023",
+            "05/01/2024"
+        ],
+        "2025": [
+            "08/01/2025","04/02/2025","03/03/2025","04/04/2025",
+            "02/05/2025","06/06/2025","04/07/2025","01/08/2025",
+            "05/09/2025","03/10/2025","07/11/2025","05/12/2025",
+            "02/01/2026"
         ]
     }
 };
 
-function getDefaultDates(year) {
-    const y = parseInt(year);
-    const dates = [];
-    for (let m = 0; m < 12; m++) dates.push(fmtDateUK(new Date(y, m, 1)));
-    dates.push(fmtDateUK(new Date(y + 1, 0, 1)));
-    return dates;
+function parseDate(s) {
+    const m = s.trim().match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    return m ? new Date(+m[3], +m[2]-1, +m[1]) : null;
 }
 
-function fmtDateUK(d) {
+function fmtDMY(d) {
     return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear();
 }
 
-function parseDate(s) {
-    s = s.trim();
-    let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-    if (m) return new Date(+m[3], +m[2]-1, +m[1]);
-    m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-    if (m) return new Date(+m[1], +m[2]-1, +m[3]);
-    return null;
-}
-
-function fmtDateAPI(d) {
+function fmtAPI(d) {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
-function loadSite() {
-    const site = document.getElementById("site").value;
-    const year = document.getElementById("year").value;
-    const dates = (CHANGEOVER_DATES[site] && CHANGEOVER_DATES[site][year]) || getDefaultDates(year);
-
-    let html = `<table class="dates-table"><tr><th></th><th>Exposure Start</th><th>Exposure End</th></tr>`;
-    for (let i = 0; i < 12; i++) {
-        const startVal = dates[i] || "";
-        const endVal = dates[i + 1] || "";
-        html += `<tr>
-            <td class="lbl">${MONTHS[i]}</td>
-            <td><input type="text" id="d${i}" value="${startVal}" placeholder="DD/MM/YYYY"></td>
-            <td><input type="text" id="d${i+1}" value="${endVal}" placeholder="DD/MM/YYYY" ${i < 11 ? 'disabled style="background:#f0f0f0"' : ''}></td>
-        </tr>`;
-    }
-    html += `</table>`;
-    html += `<p class="note" style="margin-top:-0.5rem;margin-bottom:1rem;">Edit dates if needed. End date of each month = start date of next month.</p>`;
-    document.getElementById("dates-container").innerHTML = html;
-    document.getElementById("results").innerHTML = "";
-}
-
-function readDates() {
-    const dates = [];
-    for (let i = 0; i <= 12; i++) {
-        const el = document.getElementById("d" + i);
-        if (el) {
-            const d = parseDate(el.value);
-            if (d) dates.push(d);
-            else return null;
-        }
-    }
-    return dates;
-}
-
-async function fetchHourly(site, startDate, endDate) {
-    const start = fmtDateAPI(startDate);
-    const end = fmtDateAPI(endDate);
-    const url = `${API}/Data/SiteSpecies/SiteCode=${site}/SpeciesCode=NO2/StartDate=${start}/EndDate=${end}/Json`;
+async function fetchSpecies(site, species, startDate, endDate) {
+    const url = `${API}/Data/SiteSpecies/SiteCode=${site}/SpeciesCode=${species}/StartDate=${fmtAPI(startDate)}/EndDate=${fmtAPI(endDate)}/Json`;
     const r = await fetch(url);
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const d = await r.json();
     const raw = d.RawAQData || d.AirQualityData || {};
     let entries = raw.Data || [];
     if (!Array.isArray(entries)) entries = [entries];
-    const out = [];
+    const values = [];
     for (const e of entries) {
-        const ds = e["@MeasurementDateGMT"] || e["@DateTime"] || e["@Date"] || "";
         const vs = e["@Value"] || e["@Concentration"] || "";
         if (vs && vs.trim()) {
             const v = parseFloat(vs);
-            if (!isNaN(v)) out.push(v);
+            if (!isNaN(v)) values.push(v);
         }
     }
-    return out;
+    return values;
+}
+
+function calcPeriod(values, days, interval) {
+    // interval: number of readings per hour (1 for hourly, 4 for 15-min)
+    const expected = days * 24 * interval;
+    const count = values.length;
+    const dc = expected > 0 ? +((count / expected) * 100).toFixed(0) : 0;
+    const mean = count > 0 ? +(values.reduce((a, b) => a + b, 0) / count).toFixed(1) : null;
+    return { count, expected, dc, mean };
 }
 
 async function run() {
     const site = document.getElementById("site").value;
     const year = document.getElementById("year").value;
+    const siteDates = CHANGEOVER_DATES[site] && CHANGEOVER_DATES[site][year];
 
-    const dates = readDates();
-    if (!dates || dates.length < 13) {
-        setStatus("All 13 changeover dates must be valid (DD/MM/YYYY)", "err");
+    if (!siteDates || siteDates.length < 13) {
+        setStatus("No changeover dates configured for " + site + " " + year, "err");
+        return;
+    }
+
+    const dates = siteDates.map(parseDate);
+    if (dates.some(d => !d)) {
+        setStatus("Invalid date in changeover dates config", "err");
         return;
     }
 
@@ -191,76 +187,85 @@ async function run() {
     btn.disabled = true;
     document.getElementById("results").innerHTML = "";
 
-    let html = `<div class="section"><h2>NO2 Automatic Analyser Data - ${site} (${year})</h2>`;
+    let html = `<div class="section"><h2>${site} - ${year}</h2>`;
     html += `<table><tr>
-        <th>Month</th>
-        <th>Exposure Start</th>
-        <th>Exposure End</th>
-        <th>Days</th>
-        <th>Valid Hours</th>
-        <th>Expected Hours</th>
-        <th>Data Capture (%)</th>
-        <th>Mean NO2 (\u00b5g/m\u00b3)</th>
+        <th>Period</th>
+        <th>Start Date<br>(dd/mm/yy)</th>
+        <th>End Date<br>(dd/mm/yy)</th>
+        <th>% Data<br>Capture</th>
+        <th>Ratified /<br>Provisional</th>
+        <th>NOx (if available)<br>(\u00b5g/m\u00b3)</th>
+        <th>Nitrogen Dioxide<br>(\u00b5g/m\u00b3)</th>
     </tr>`;
 
-    let totalValid = 0, totalExpected = 0, sumMeans = 0, countMeans = 0;
+    let allNO2 = [], allNOx = [], totalExpected = 0, totalCount = 0;
 
     for (let i = 0; i < 12; i++) {
         const pStart = dates[i];
         const pEnd = dates[i + 1];
         const days = Math.round((pEnd - pStart) / 86400000);
-        const expected = days * 24;
+        const fetchEnd = new Date(pEnd);
+        fetchEnd.setDate(fetchEnd.getDate() - 1);
 
-        setStatus(`<span class="spinner"></span>Fetching ${MONTHS[i]}...`, "load");
+        setStatus(`<span class="spinner"></span>Fetching period ${i + 1} of 12...`, "load");
+
+        let no2Mean = null, noxMean = null, dc = 0;
 
         try {
-            const fetchEnd = new Date(pEnd);
-            fetchEnd.setDate(fetchEnd.getDate() - 1);
-            const values = await fetchHourly(site, pStart, fetchEnd);
+            // Fetch NO2 and NOx in parallel
+            const [no2Vals, noxVals] = await Promise.all([
+                fetchSpecies(site, "NO2", pStart, fetchEnd),
+                fetchSpecies(site, "NOX", pStart, fetchEnd).catch(() => [])
+            ]);
 
-            const count = values.length;
-            const dc = expected > 0 ? +((count / expected) * 100).toFixed(1) : 0;
-            const mean = count > 0 ? +(values.reduce((a, b) => a + b, 0) / count).toFixed(1) : null;
-            const dcCls = dc < 75 ? ' class="low-dc"' : '';
+            // Detect if we got 15-min or hourly data from count vs expected
+            // 15-min: ~96 per day, hourly: ~24 per day
+            const readingsPerDay = no2Vals.length / Math.max(days, 1);
+            const interval = readingsPerDay > 48 ? 4 : 1; // 4 = 15-min, 1 = hourly
 
-            totalExpected += expected;
-            totalValid += count;
-            if (mean != null) { countMeans++; sumMeans += mean; }
+            const no2Stats = calcPeriod(no2Vals, days, interval);
+            const noxStats = calcPeriod(noxVals, days, interval);
 
-            html += `<tr>
-                <td class="lbl">${MONTHS[i]}</td>
-                <td>${fmtDateUK(pStart)}</td>
-                <td>${fmtDateUK(pEnd)}</td>
-                <td>${days}</td>
-                <td>${count}</td>
-                <td>${expected}</td>
-                <td${dcCls}>${dc}</td>
-                <td>${mean != null ? mean : "\u2014"}</td>
-            </tr>`;
+            no2Mean = no2Stats.mean;
+            noxMean = noxStats.mean;
+            dc = no2Stats.dc;
+            totalExpected += no2Stats.expected;
+            totalCount += no2Stats.count;
+            if (no2Mean != null) allNO2.push(...no2Vals);
+            if (noxMean != null) allNOx.push(...noxVals);
         } catch (e) {
-            console.warn(`${MONTHS[i]} failed:`, e);
-            html += `<tr>
-                <td class="lbl">${MONTHS[i]}</td>
-                <td>${fmtDateUK(pStart)}</td>
-                <td>${fmtDateUK(pEnd)}</td>
-                <td>${days}</td>
-                <td colspan="4" class="low-dc">Error fetching data</td>
-            </tr>`;
+            console.warn(`Period ${i+1} failed:`, e);
         }
+
+        const dcCls = dc < 75 ? ' class="low-dc"' : '';
+        const ratified = dc > 0 ? "Provisional" : "";
+
+        html += `<tr>
+            <td><strong>${i + 1}</strong></td>
+            <td>${fmtDMY(pStart)}</td>
+            <td>${fmtDMY(pEnd)}</td>
+            <td${dcCls}>${dc > 0 ? dc : "\u2014"}</td>
+            <td>${ratified}</td>
+            <td>${noxMean != null ? noxMean : ""}</td>
+            <td>${no2Mean != null ? no2Mean : ""}</td>
+        </tr>`;
     }
 
-    const overallDC = totalExpected > 0 ? +((totalValid / totalExpected) * 100).toFixed(1) : 0;
-    const annualMean = countMeans > 0 ? (sumMeans / countMeans).toFixed(1) : "\u2014";
+    // Annual summary
+    const overallDC = totalExpected > 0 ? +((totalCount / totalExpected) * 100).toFixed(0) : 0;
+    const annualNO2 = allNO2.length > 0 ? (allNO2.reduce((a,b) => a+b, 0) / allNO2.length).toFixed(1) : "\u2014";
+    const annualNOx = allNOx.length > 0 ? (allNOx.reduce((a,b) => a+b, 0) / allNOx.length).toFixed(1) : "\u2014";
 
     html += `<tr class="summary">
-        <td class="lbl" colspan="4">Annual Summary</td>
-        <td>${totalValid}</td>
-        <td>${totalExpected}</td>
+        <td colspan="3"><strong>Annual Mean</strong></td>
         <td>${overallDC}</td>
-        <td>${annualMean}</td>
+        <td></td>
+        <td>${annualNOx}</td>
+        <td>${annualNO2}</td>
     </tr></table>`;
 
-    html += `<p class="note">Periods with &lt;75% data capture shown in red. Each period runs from changeover date to day before next changeover. Data from London Air Quality Network API.</p>`;
+    const readingsNote = allNO2.length > 0 ? `${allNO2.length} total readings used` : "";
+    html += `<p class="note">Data from London Air Quality Network API. Means calculated from all individual readings (15-min where available, hourly otherwise). ${readingsNote}</p>`;
     html += `</div>`;
 
     document.getElementById("results").innerHTML = html;
@@ -272,9 +277,6 @@ function setStatus(msg, cls) {
     document.getElementById("status").innerHTML = msg;
     document.getElementById("status").className = cls;
 }
-
-// Load on start
-loadSite();
 </script>
 </body>
 </html>
